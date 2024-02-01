@@ -11,6 +11,7 @@ const SUB: u8 = 0x03;
 const DIV: u8 = 0x04;
 const SDIV: u8 = 0x05;
 const MOD: u8 = 0x06;
+const EXP: u8 = 0x0A;
 
 pub struct EVM {
     code: Vec<u8>,
@@ -122,6 +123,16 @@ impl EVM {
         self.stack.push(res);
     }
 
+    pub fn exp(&mut self) {
+        if self.stack.len() < 2 {
+            panic!("stack underflow");
+        }
+        let a = self.pop();
+        let b = self.pop();
+        let res = b.checked_pow(a as u32).expect("exp overflow");
+        self.stack.push(res);
+    }
+
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
             let op = self.next_instruction();
@@ -155,6 +166,9 @@ impl EVM {
                 }
                 MOD => {
                     self.r#mod();
+                }
+                EXP => {
+                    self.exp();
                 }
                 _ => unimplemented!(),
             }
