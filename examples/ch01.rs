@@ -15,6 +15,7 @@ const EXP: u8 = 0x0A;
 const LT: u8 = 0x10;
 const GT: u8 = 0x11;
 const EQ: u8 = 0x14;
+const ISZERO: u8 = 0x15;
 
 pub struct EVM {
     code: Vec<u8>,
@@ -166,6 +167,15 @@ impl EVM {
         self.stack.push(res);
     }
 
+    pub fn iszero(&mut self) {
+        if self.stack.is_empty() {
+            panic!("stack underflow");
+        }
+        let a = self.pop();
+        let res = if a == 0 { 1 } else { 0 };
+        self.stack.push(res);
+    }
+
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
             let op = self.next_instruction();
@@ -212,6 +222,9 @@ impl EVM {
                 EQ => {
                     self.eq();
                 }
+                ISZERO => {
+                    self.iszero();
+                }
                 _ => unimplemented!(),
             }
         }
@@ -219,7 +232,7 @@ impl EVM {
 }
 
 pub fn main() {
-    let code = b"\x60\x02\x60\x03\x14"; 
+    let code = b"\x60\x00\x15";
     let mut evm = EVM::init(code);
     evm.run();
     println!("{:}",evm);
