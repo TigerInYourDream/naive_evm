@@ -1,5 +1,5 @@
-use std::fmt::{Display, Error, Formatter};
 use anyhow::Result;
+use std::fmt::{Display, Error, Formatter};
 
 const PUSH0: u8 = 0x5F;
 const PUSH1: u8 = 0x60;
@@ -16,6 +16,7 @@ const LT: u8 = 0x10;
 const GT: u8 = 0x11;
 const EQ: u8 = 0x14;
 const ISZERO: u8 = 0x15;
+const AND: u8 = 0x16;
 
 pub struct EVM {
     code: Vec<u8>,
@@ -27,7 +28,7 @@ pub struct EVM {
 impl Display for EVM {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         write!(f, "evm stack {:?}", self.stack)
-    } 
+    }
 }
 
 impl EVM {
@@ -136,7 +137,7 @@ impl EVM {
         let res = b.checked_pow(a as u32).expect("exp overflow");
         self.stack.push(res);
     }
-    
+
     pub fn lt(&mut self) {
         if self.stack.len() < 2 {
             panic!("stack underflow");
@@ -174,6 +175,15 @@ impl EVM {
         let a = self.pop();
         let res = if a == 0 { 1 } else { 0 };
         self.stack.push(res);
+    }
+
+    pub fn and_op(&mut self) {
+        if self.stack.len() < 2 {
+            panic!("stack underflow");
+        }
+        let a = self.pop();
+        let b = self.pop();
+        self.stack.push(a & b);
     }
 
     pub fn run(&mut self) {
@@ -225,6 +235,9 @@ impl EVM {
                 ISZERO => {
                     self.iszero();
                 }
+                AND => {
+                    self.and_op();
+                }
                 _ => unimplemented!(),
             }
         }
@@ -232,8 +245,8 @@ impl EVM {
 }
 
 pub fn main() {
-    let code = b"\x60\x00\x15";
+    let code =  b"\x60\x02\x60\x03\x16";
     let mut evm = EVM::init(code);
     evm.run();
-    println!("{:}",evm);
+    println!("{:}", evm);
 }
