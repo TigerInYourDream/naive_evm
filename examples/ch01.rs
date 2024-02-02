@@ -14,6 +14,7 @@ const MOD: u8 = 0x06;
 const EXP: u8 = 0x0A;
 const LT: u8 = 0x10;
 const GT: u8 = 0x11;
+const EQ: u8 = 0x14;
 
 pub struct EVM {
     code: Vec<u8>,
@@ -145,6 +146,16 @@ impl EVM {
         self.stack.push(res);
     }
 
+    pub fn eq(&mut self) {
+        if self.stack.len() < 2 {
+            panic!("stack underflow");
+        }
+        let a = self.pop();
+        let b = self.pop();
+        let res = if b == a { 1 } else { 0 };
+        self.stack.push(res);
+    }
+
     pub fn gt(&mut self) {
         if self.stack.len() < 2 {
             panic!("stack underflow");
@@ -198,6 +209,9 @@ impl EVM {
                 GT => {
                     self.gt();
                 }
+                EQ => {
+                    self.eq();
+                }
                 _ => unimplemented!(),
             }
         }
@@ -205,7 +219,7 @@ impl EVM {
 }
 
 pub fn main() {
-    let code = b"\x60\x02\x60\x03\x11";
+    let code = b"\x60\x02\x60\x03\x14"; 
     let mut evm = EVM::init(code);
     evm.run();
     println!("{:}",evm);
