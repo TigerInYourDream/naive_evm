@@ -17,6 +17,8 @@ const GT: u8 = 0x11;
 const EQ: u8 = 0x14;
 const ISZERO: u8 = 0x15;
 const AND: u8 = 0x16;
+const OR: u8 = 0x17;
+const XOR: u8 = 0x18;
 
 pub struct EVM {
     code: Vec<u8>,
@@ -186,6 +188,24 @@ impl EVM {
         self.stack.push(a & b);
     }
 
+    pub fn or(&mut self) {
+        if self.stack.len() < 2 {
+            panic!("stack underflow");
+        }
+        let a = self.pop();
+        let b = self.pop();
+        self.stack.push(a | b);
+    }
+
+    pub fn xor(&mut self) {
+        if self.stack.len() < 2 {
+            panic!("stack underflow");
+        }
+        let a = self.pop();
+        let b = self.pop();
+        self.stack.push(a ^ b);
+    }
+
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
             let op = self.next_instruction();
@@ -238,6 +258,12 @@ impl EVM {
                 AND => {
                     self.and_op();
                 }
+                OR => {
+                    self.or();
+                }
+                XOR => {
+                    self.xor();
+                }
                 _ => unimplemented!(),
             }
         }
@@ -245,7 +271,7 @@ impl EVM {
 }
 
 pub fn main() {
-    let code =  b"\x60\x02\x60\x03\x16";
+    let code = b"\x60\x02\x60\x03\x18";
     let mut evm = EVM::init(code);
     evm.run();
     println!("{:}", evm);
