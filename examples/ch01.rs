@@ -21,6 +21,7 @@ const OR: u8 = 0x17;
 const XOR: u8 = 0x18;
 const NOT: u8 = 0x19;
 const SHL: u8 = 0x1B;
+const SHR: u8 = 0x1C;
 
 pub struct EVM {
     code: Vec<u8>,
@@ -225,6 +226,15 @@ impl EVM {
         self.stack.push(b << a);
     }
 
+    pub fn shr(&mut self) {
+        if self.stack.len() < 2 {
+            panic!("stack underflow");
+        }
+        let a = self.pop();
+        let b = self.pop();
+        self.stack.push(b >> a);
+    }
+
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
             let op = self.next_instruction();
@@ -289,6 +299,9 @@ impl EVM {
                 SHL => {
                     self.shl();
                 }
+                SHR => {
+                    self.shr();
+                }
                 _ => unimplemented!(),
             }
         }
@@ -296,7 +309,7 @@ impl EVM {
 }
 
 pub fn main() {
-    let code = b"\x60\x02\x60\x03\x1B";
+    let code = b"\x60\x10\x60\x03\x1C";
     let mut evm = EVM::init(code);
     evm.run();
     println!("{:}", evm);
