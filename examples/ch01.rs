@@ -27,6 +27,7 @@ const NOT: u8 = 0x19;
 const SHL: u8 = 0x1B;
 const SHR: u8 = 0x1C;
 const BYTE: u8 = 0x1A;
+const MSTORE: u8 = 0x52;
 
 pub struct EVM {
     code: Vec<u8>,
@@ -279,6 +280,18 @@ impl EVM {
             .push(((*b >> (*a * 8)) & U256::from(0xff)).into());
     }
 
+    pub fn mstore(&mut self) {
+        if self.stack.len() < 2 {
+            panic!("stack underflow");
+        }
+        let offset = self.pop();
+        let value = self.pop();
+        while self.memmory.len() < offset.as_u64() as usize + 32{
+            self.memmory.push(0.into());
+        }
+        self.memmory[offset.as_u64() as usize] = value;
+    }
+
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
             let op = self.next_instruction();
@@ -349,6 +362,9 @@ impl EVM {
                 BYTE => {
                     self.byte();
                 }
+                MSTORE => {
+                    self.mstore();
+                }
                 _ => unimplemented!(),
             }
         }
@@ -356,8 +372,8 @@ impl EVM {
 }
 
 pub fn main() {
-    let code = b"\x60\x10\x60\x03\x1C";
+    let code = b"\x60\x02\x60\x20\x52";
     let mut evm = EVM::init(code);
     evm.run();
-    println!("{:}", evm);
+    println!("{:?}", &evm.memmory[20..40]);
 }
