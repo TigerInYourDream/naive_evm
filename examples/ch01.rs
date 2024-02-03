@@ -1,5 +1,9 @@
 use anyhow::Result;
-use std::fmt::{Display, Error, Formatter};
+use primitive_types::U256;
+use std::{
+    fmt::{Debug, Display, Error, Formatter},
+    ops::{Deref, DerefMut},
+};
 
 const PUSH0: u8 = 0x5F;
 const PUSH1: u8 = 0x60;
@@ -28,12 +32,48 @@ pub struct EVM {
     code: Vec<u8>,
     pc: usize,
     // 在堆栈中，每个元素长度为256位 最大深度1024
-    stack: Vec<i32>,
+    stack: Vec<TransparentU256>,
+    // memory
+    memmory: Vec<TransparentU256>,
+}
+
+pub struct TransparentU256(pub U256);
+
+impl Debug for TransparentU256 {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+        write!(f, "{:}", self.0)
+    }
+}
+
+impl Deref for TransparentU256 {
+    type Target = U256;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for TransparentU256 {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl From<u64> for TransparentU256 {
+    fn from(value: u64) -> Self {
+        TransparentU256(U256::from(value))
+    }
+}
+
+impl From<U256> for TransparentU256 {
+    fn from(value: U256) -> Self {
+        TransparentU256(value)
+    }
 }
 
 impl Display for EVM {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
-        write!(f, "evm stack {:?}", self.stack)
+        write!(f, "Evm stack: {:?} memmory: {:?}", self.stack, self.memmory)
     }
 }
 
@@ -43,6 +83,7 @@ impl EVM {
             code: code.to_vec(),
             pc: 0,
             stack: Vec::with_capacity(256),
+            memmory: Vec::new(),
         }
     }
 
@@ -54,17 +95,12 @@ impl EVM {
 
     pub fn push(&mut self, size: usize) {
         let data = &self.code[self.pc..self.pc + size];
-        // 简单填充[u8] 为u32
-        let mut buffer = [0u8; 4];
-        for (i, byte) in data.iter().enumerate() {
-            buffer[4 - size + i] = *byte;
-        }
-        let value = i32::from_be_bytes(buffer);
-        self.stack.push(value);
+        let value = U256::from(data);
+        self.stack.push(value.into());
         self.pc += size;
     }
 
-    pub fn pop(&mut self) -> i32 {
+    pub fn pop(&mut self) -> TransparentU256 {
         if self.stack.is_empty() {
             panic!("stack underflow");
         }
@@ -77,9 +113,8 @@ impl EVM {
         }
         let a = self.pop();
         let b = self.pop();
-        // 防止溢出 256位
-        let res = a.checked_add(b).expect("add overflow");
-        self.stack.push(res);
+        let res = a.checked_add(*b).expect("add overflow");
+        self.stack.push(res.into());
     }
 
     pub fn mul(&mut self) {
@@ -88,9 +123,8 @@ impl EVM {
         }
         let a = self.pop();
         let b = self.pop();
-        // 防止溢出 256位
-        let res = a.checked_mul(b).expect("mul overflow");
-        self.stack.push(res);
+        let res = a.checked_mul(*b).expect("mul overflow");
+        self.stack.push(res.into());
     }
 
     pub fn sub(&mut self) {
@@ -99,9 +133,8 @@ impl EVM {
         }
         let a = self.pop();
         let b = self.pop();
-        // 防止溢出 256位
-        let res = b.checked_sub(a).expect("sub overflow");
-        self.stack.push(res);
+        let res = b.checked_sub(*a).expect("sub overflow");
+        self.stack.push(res.into());
     }
 
     pub fn div(&mut self) {
@@ -110,8 +143,8 @@ impl EVM {
         }
         let a = self.pop();
         let b = self.pop();
-        let res = b.checked_div(a).expect("div overflow");
-        self.stack.push(res.abs());
+        let res = b.checked_div(*a).expect("div overflow");
+        self.stack.push(res.into());
     }
 
     pub fn sdiv(&mut self) {
@@ -120,8 +153,8 @@ impl EVM {
         }
         let a = self.pop();
         let b = self.pop();
-        let res = b.checked_div(a).expect("sdiv overflow");
-        self.stack.push(res);
+        let res = b.checked_div(*a).expect("sdiv overflow");
+        self.stack.push(res.into());
     }
 
     pub fn r#mod(&mut self) {
@@ -130,8 +163,8 @@ impl EVM {
         }
         let a = self.pop();
         let b = self.pop();
-        let res = b.checked_rem(a).expect("mod overflow");
-        self.stack.push(res);
+        let res = b.checked_rem(*a).expect("mod overflow");
+        self.stack.push(res.into());
     }
 
     pub fn exp(&mut self) {
@@ -140,8 +173,8 @@ impl EVM {
         }
         let a = self.pop();
         let b = self.pop();
-        let res = b.checked_pow(a as u32).expect("exp overflow");
-        self.stack.push(res);
+        let res = b.checked_pow(*a).expect("exp overflow");
+        self.stack.push(res.into());
     }
 
     pub fn lt(&mut self) {
@@ -150,8 +183,8 @@ impl EVM {
         }
         let a = self.pop();
         let b = self.pop();
-        let res = if b < a { 1 } else { 0 };
-        self.stack.push(res);
+        let res = if *b < *a { 1 } else { 0 };
+        self.stack.push(res.into());
     }
 
     pub fn eq(&mut self) {
@@ -160,8 +193,8 @@ impl EVM {
         }
         let a = self.pop();
         let b = self.pop();
-        let res = if b == a { 1 } else { 0 };
-        self.stack.push(res);
+        let res = if *b == *a { 1 } else { 0 };
+        self.stack.push(res.into());
     }
 
     pub fn gt(&mut self) {
@@ -170,8 +203,8 @@ impl EVM {
         }
         let a = self.pop();
         let b = self.pop();
-        let res = if b > a { 1 } else { 0 };
-        self.stack.push(res);
+        let res = if *b > *a { 1 } else { 0 };
+        self.stack.push(res.into());
     }
 
     pub fn iszero(&mut self) {
@@ -179,8 +212,8 @@ impl EVM {
             panic!("stack underflow");
         }
         let a = self.pop();
-        let res = if a == 0 { 1 } else { 0 };
-        self.stack.push(res);
+        let res = if a.is_zero() { 1 } else { 0 };
+        self.stack.push(res.into());
     }
 
     pub fn and_op(&mut self) {
@@ -189,7 +222,7 @@ impl EVM {
         }
         let a = self.pop();
         let b = self.pop();
-        self.stack.push(a & b);
+        self.stack.push(((*a) & (*b)).into());
     }
 
     pub fn or(&mut self) {
@@ -198,7 +231,7 @@ impl EVM {
         }
         let a = self.pop();
         let b = self.pop();
-        self.stack.push(a | b);
+        self.stack.push((*a | *b).into());
     }
 
     pub fn xor(&mut self) {
@@ -207,7 +240,7 @@ impl EVM {
         }
         let a = self.pop();
         let b = self.pop();
-        self.stack.push(a ^ b);
+        self.stack.push((*a ^ *b).into());
     }
 
     pub fn not(&mut self) {
@@ -215,7 +248,7 @@ impl EVM {
             panic!("stack underflow");
         }
         let a = self.pop();
-        self.stack.push(!a);
+        self.stack.push((!(*a)).into());
     }
 
     pub fn shl(&mut self) {
@@ -224,7 +257,7 @@ impl EVM {
         }
         let a = self.pop();
         let b = self.pop();
-        self.stack.push(b << a);
+        self.stack.push((*b << *a).into());
     }
 
     pub fn shr(&mut self) {
@@ -233,7 +266,7 @@ impl EVM {
         }
         let a = self.pop();
         let b = self.pop();
-        self.stack.push(b >> a);
+        self.stack.push((*b >> *a).into());
     }
 
     pub fn byte(&mut self) {
@@ -242,7 +275,8 @@ impl EVM {
         }
         let a = self.pop();
         let b = self.pop();
-        self.stack.push((b >> (a * 8)) & 0xff);
+        self.stack
+            .push(((*b >> (*a * 8)) & U256::from(0xff)).into());
     }
 
     pub fn run(&mut self) {
@@ -256,8 +290,8 @@ impl EVM {
                     self.push(size as usize);
                 }
                 // just for PUSH0 for save gas
-                PUSH0 => self.stack.push(0),
-                // pop
+                PUSH0 => self.stack.push(0.into()),
+                // pop()
                 POP => {
                     self.pop();
                 }
