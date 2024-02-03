@@ -1,36 +1,10 @@
 use anyhow::Result;
+use naive_evm::op_code::*;
 use primitive_types::U256;
 use std::{
     fmt::{Debug, Display, Error, Formatter},
     ops::{Deref, DerefMut},
 };
-
-const PUSH0: u8 = 0x5F;
-const PUSH1: u8 = 0x60;
-const PUSH32: u8 = 0x7F;
-const POP: u8 = 0x50;
-const ADD: u8 = 0x01;
-const MUL: u8 = 0x02;
-const SUB: u8 = 0x03;
-const DIV: u8 = 0x04;
-const SDIV: u8 = 0x05;
-const MOD: u8 = 0x06;
-const EXP: u8 = 0x0A;
-const LT: u8 = 0x10;
-const GT: u8 = 0x11;
-const EQ: u8 = 0x14;
-const ISZERO: u8 = 0x15;
-const AND: u8 = 0x16;
-const OR: u8 = 0x17;
-const XOR: u8 = 0x18;
-const NOT: u8 = 0x19;
-const SHL: u8 = 0x1B;
-const SHR: u8 = 0x1C;
-const BYTE: u8 = 0x1A;
-const MSTORE: u8 = 0x52;
-const MSTORE8: u8 = 0x53;
-const MLOAD: u8 = 0x51;
-const MSIZE: u8 = 0x59;
 
 pub struct EVM {
     code: Vec<u8>,
