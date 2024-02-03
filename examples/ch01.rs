@@ -30,6 +30,7 @@ const BYTE: u8 = 0x1A;
 const MSTORE: u8 = 0x52;
 const MSTORE8: u8 = 0x53;
 const MLOAD: u8 = 0x51;
+const MSIZE: u8 = 0x59;
 
 pub struct EVM {
     code: Vec<u8>,
@@ -325,6 +326,11 @@ impl EVM {
         self.stack.push(U256::from(value).into());
     }
 
+    pub fn msize(&mut self) {
+        let size = self.memmory.len() as u64;
+        self.stack.push(size.into());
+    }
+
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
             let op = self.next_instruction();
@@ -402,6 +408,9 @@ impl EVM {
                 }
                 MLOAD => {
                     self.mload();
+                }
+                MSIZE => {
+                    self.msize();
                 }
                 _ => unimplemented!(),
             }
