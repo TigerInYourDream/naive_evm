@@ -29,6 +29,7 @@ const SHR: u8 = 0x1C;
 const BYTE: u8 = 0x1A;
 const MSTORE: u8 = 0x52;
 const MSTORE8: u8 = 0x53;
+const MLOAD: u8 = 0x51;
 
 pub struct EVM {
     code: Vec<u8>,
@@ -36,9 +37,9 @@ pub struct EVM {
     // 在堆栈中，每个元素长度为256位 最大深度1024
     stack: Vec<TransparentU256>,
     // memory
-    memmory: Vec<TransparentU256>,
+    memmory: Vec<u8>,
 }
-
+#[derive(Clone, PartialEq, Eq)]
 pub struct TransparentU256(pub U256);
 
 impl Debug for TransparentU256 {
@@ -285,25 +286,43 @@ impl EVM {
         if self.stack.len() < 2 {
             panic!("stack underflow");
         }
-        let offset = self.pop();
+        let offset = self.pop().as_u64() as usize;
         let value = self.pop();
-        while self.memmory.len() < offset.as_u64() as usize + 32 {
+        // 填充 offsite + 32
+        while self.memmory.len() < offset + 32 {
             self.memmory.push(0.into());
         }
-        self.memmory[offset.as_u64() as usize] = value;
+        // 补充[u8;32]
+        let mut res: [u8; 32] = [0; 32];
+        value.to_big_endian(&mut res);
+        self.memmory[offset..offset + 32].copy_from_slice(&res);
     }
 
     pub fn mstore8(&mut self) {
         if self.stack.len() < 2 {
             panic!("stack underflow");
         }
-        let offset = self.pop();
+        let offset = self.pop().as_u64() as usize;
         // only need low 8 bits
         let value = self.pop();
-        while self.memmory.len() < offset.as_u64() as usize + 32 {
+        while self.memmory.len() < offset + 32 {
             self.memmory.push(0.into());
         }
-        self.memmory[offset.as_u64() as usize] = (*value & U256::from(0xff)).into();
+        let mut res: [u8; 32] = [0; 32];
+        value.to_big_endian(&mut res);
+        self.memmory[offset..offset + 32].copy_from_slice(&res[24..32]);
+    }
+
+    pub fn mload(&mut self) {
+        if self.stack.is_empty() {
+            panic!("stack underflow");
+        }
+        let offset = self.pop().as_u32() as usize;
+        while self.memmory.len() < 32 + offset {
+            self.memmory.push(0.into());
+        }
+        let value = &self.memmory[offset..offset + 32];
+        self.stack.push(U256::from(value).into());
     }
 
     pub fn run(&mut self) {
@@ -381,6 +400,9 @@ impl EVM {
                 MSTORE8 => {
                     self.mstore8();
                 }
+                MLOAD => {
+                    self.mload();
+                }
                 _ => unimplemented!(),
             }
         }
@@ -388,8 +410,9 @@ impl EVM {
 }
 
 pub fn main() {
-    let code = b"\x60\x02\x60\x20\x53";
+    let code = b"\x60\x02\x60\x20\x52\x60\x20\x51";
     let mut evm = EVM::init(code);
     evm.run();
-    println!("{:?}", &evm.memmory[0x20..0x40]);
+    println!("memory {:?}", &evm.memmory[0x20..0x40]);
+    println!("stack {:?}", &evm.stack);
 }
