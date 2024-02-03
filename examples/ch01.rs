@@ -28,6 +28,7 @@ const SHL: u8 = 0x1B;
 const SHR: u8 = 0x1C;
 const BYTE: u8 = 0x1A;
 const MSTORE: u8 = 0x52;
+const MSTORE8: u8 = 0x53;
 
 pub struct EVM {
     code: Vec<u8>,
@@ -286,10 +287,23 @@ impl EVM {
         }
         let offset = self.pop();
         let value = self.pop();
-        while self.memmory.len() < offset.as_u64() as usize + 32{
+        while self.memmory.len() < offset.as_u64() as usize + 32 {
             self.memmory.push(0.into());
         }
         self.memmory[offset.as_u64() as usize] = value;
+    }
+
+    pub fn mstore8(&mut self) {
+        if self.stack.len() < 2 {
+            panic!("stack underflow");
+        }
+        let offset = self.pop();
+        // only need low 8 bits
+        let value = self.pop();
+        while self.memmory.len() < offset.as_u64() as usize + 32 {
+            self.memmory.push(0.into());
+        }
+        self.memmory[offset.as_u64() as usize] = (*value & U256::from(0xff)).into();
     }
 
     pub fn run(&mut self) {
@@ -298,7 +312,6 @@ impl EVM {
             match op {
                 // from PUSH1 to PUSH32
                 i if PUSH1 <= i && i <= PUSH32 => {
-                    println!("op : {:0x?}", i);
                     let size = op - PUSH1 + 1;
                     self.push(size as usize);
                 }
@@ -365,6 +378,9 @@ impl EVM {
                 MSTORE => {
                     self.mstore();
                 }
+                MSTORE8 => {
+                    self.mstore8();
+                }
                 _ => unimplemented!(),
             }
         }
@@ -372,8 +388,8 @@ impl EVM {
 }
 
 pub fn main() {
-    let code = b"\x60\x02\x60\x20\x52";
+    let code = b"\x60\x02\x60\x20\x53";
     let mut evm = EVM::init(code);
     evm.run();
-    println!("{:?}", &evm.memmory[20..40]);
+    println!("{:?}", &evm.memmory[0x20..0x40]);
 }
