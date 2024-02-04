@@ -1,7 +1,9 @@
 use anyhow::Result;
+use colored::Colorize;
 use naive_evm::op_code::*;
 use primitive_types::U256;
 use std::{
+    collections::HashMap,
     fmt::{Debug, Display, Error, Formatter},
     ops::{Deref, DerefMut},
 };
@@ -13,6 +15,7 @@ pub struct EVM {
     stack: Vec<TransparentU256>,
     // memory
     memmory: Vec<u8>,
+    storage: HashMap<U256, U256>,
 }
 #[derive(Clone, PartialEq, Eq)]
 pub struct TransparentU256(pub U256);
@@ -20,6 +23,12 @@ pub struct TransparentU256(pub U256);
 impl Debug for TransparentU256 {
     fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
         write!(f, "{:}", self.0)
+    }
+}
+
+impl Default for TransparentU256 {
+    fn default() -> Self {
+        TransparentU256(U256::zero())
     }
 }
 
@@ -62,6 +71,7 @@ impl EVM {
             pc: 0,
             stack: Vec::with_capacity(256),
             memmory: Vec::new(),
+            storage: HashMap::new(),
         }
     }
 
@@ -305,6 +315,30 @@ impl EVM {
         self.stack.push(size.into());
     }
 
+    pub fn sstore(&mut self) {
+        if self.stack.len() < 2 {
+            panic!("stack underflow");
+        }
+        let key = self.pop();
+        let value = self.pop();
+        self.storage.insert(*key, *value);
+    }
+
+    pub fn sload(&mut self) {
+        if self.stack.is_empty() {
+            panic!("stack underflow");
+        }
+        let key = self.pop();
+        let default = &TransparentU256::default();
+        let value = self.storage.get(&key).unwrap_or(default);
+        self.stack.push((*value).into());
+    }
+
+    pub fn stop(&mut self) {
+        let text = "stop evm".red().bold();
+        println!("[evm]     --> {}",text) 
+    }
+
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
             let op = self.next_instruction();
@@ -384,6 +418,16 @@ impl EVM {
                 MSIZE => {
                     self.msize();
                 }
+                SSTORE => {
+                    self.sstore();
+                }
+                SLOAD => {
+                    self.sload();
+                }
+                STOP => {
+                    self.stop();
+                    break;
+                }
                 _ => unimplemented!(),
             }
         }
@@ -391,9 +435,23 @@ impl EVM {
 }
 
 pub fn main() {
-    let code = b"\x60\x02\x60\x20\x52\x60\x20\x51";
+    let appname = r#"
+
+    ███╗   ██╗ █████╗ ██╗██╗   ██╗███████╗    ███████╗██╗   ██╗███╗   ███╗
+    ████╗  ██║██╔══██╗██║██║   ██║██╔════╝    ██╔════╝██║   ██║████╗ ████║
+    ██╔██╗ ██║███████║██║██║   ██║█████╗      █████╗  ██║   ██║██╔████╔██║
+    ██║╚██╗██║██╔══██║██║╚██╗ ██╔╝██╔══╝      ██╔══╝  ╚██╗ ██╔╝██║╚██╔╝██║
+    ██║ ╚████║██║  ██║██║ ╚████╔╝ ███████╗    ███████╗ ╚████╔╝ ██║ ╚═╝ ██║
+    ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═══╝  ╚══════╝    ╚══════╝  ╚═══╝  ╚═╝     ╚═╝
+                                                                          
+    
+    "#;
+    println!("{}", appname.green().bold());
+
+    let code = b"\x00";
     let mut evm = EVM::init(code);
     evm.run();
-    println!("[memory] --> {:?}", &evm.memmory[0x20..0x40]);
-    println!("[stack]  --> {:?}", &evm.stack);
+    println!("[memory]  --> {:?}", &evm.memmory[..]);
+    println!("[stack]   --> {:?}", &evm.stack);
+    println!("[storage] --> {:?}", &evm.storage);
 }
