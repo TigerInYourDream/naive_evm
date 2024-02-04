@@ -1,0 +1,23 @@
+[tasks.format]
+install_crate = "rustfmt"
+command = "cargo"
+args = ["fmt"]
+
+[tasks.clean]
+command = "cargo"
+args = ["clean"]
+
+[tasks.build]
+command = "cargo"
+args = ["build"]
+dependencies = ["clean"]
+
+[tasks.ep01]
+command = "cargo"
+args = ["run","--package", "naive_evm", "--example", "ch01"]
+
+[tasks.flow]
+dependencies = [
+    "format",
+    "ep01"
+]

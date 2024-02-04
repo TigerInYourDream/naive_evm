@@ -309,12 +309,10 @@ impl EVM {
         while self.pc < self.code.len() {
             let op = self.next_instruction();
             match op {
-                // from PUSH1 to PUSH32
                 i if PUSH1 <= i && i <= PUSH32 => {
                     let size = op - PUSH1 + 1;
                     self.push(size as usize);
                 }
-                // just for PUSH0 for save gas
                 PUSH0 => self.stack.push(0.into()),
                 // pop()
                 POP => {
@@ -396,6 +394,6 @@ pub fn main() {
     let code = b"\x60\x02\x60\x20\x52\x60\x20\x51";
     let mut evm = EVM::init(code);
     evm.run();
-    println!("memory {:?}", &evm.memmory[0x20..0x40]);
-    println!("stack {:?}", &evm.stack);
+    println!("[memory] --> {:?}", &evm.memmory[0x20..0x40]);
+    println!("[stack]  --> {:?}", &evm.stack);
 }
