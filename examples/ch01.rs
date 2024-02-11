@@ -350,9 +350,8 @@ impl EVM {
             } else if op >= PUSH1 && op <= PUSH32 {
                 // skip the immediate
                 pc += (op - PUSH1 + 1) as usize;
-            } else {
-                pc += 1;
-            }
+            } 
+            pc += 1;
         }
     }
 
@@ -368,10 +367,28 @@ impl EVM {
         if dest >= self.code.len() {
             panic!("invalid jump destination");
         }
+        println!("valid jump dest: {:?}", self.vaild_jump_dest);
+        if !self.vaild_jump_dest.contains(&dest) {
+                panic!("invalid jump destination");
+        }
+
         self.pc = dest;
     }
-    
-    pub fn 
+
+    pub fn jumpi(&mut self) {
+        if self.stack.len() < 2 {
+            panic!("stack underflow");
+        }
+
+        let dest = self.pop().as_usize();
+        let op = self.pop();
+        if op.as_usize() != 0 {
+            if !self.vaild_jump_dest.contains(&dest) {
+                panic!("invalid jump destination");
+            }
+            self.pc = dest;
+        }
+    }
 
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
@@ -468,6 +485,9 @@ impl EVM {
                 JUMPDEST => {
                     self.jump_dest();
                 }
+                JUMPI => {
+                    self.jumpi();
+                }
                 _ => unimplemented!(),
             }
         }
@@ -488,8 +508,10 @@ pub fn main() {
     "#;
     println!("{}", appname.green().bold());
 
-    let code = b"\x60\x04\x56\x00\x5b"; 
+    let code = b"\x60\x01\x60\x06\x57\x00\x5b";
     let mut evm = EVM::init(code);
+    // check valid jumo dest
+    evm.find_valid_jump_destinations();
     evm.run();
     println!("[memory]  --> {:?}", &evm.memmory[..]);
     println!("[stack]   --> {:?}", &evm.stack);
