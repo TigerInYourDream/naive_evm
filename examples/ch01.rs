@@ -350,7 +350,7 @@ impl EVM {
             } else if op >= PUSH1 && op <= PUSH32 {
                 // skip the immediate
                 pc += (op - PUSH1 + 1) as usize;
-            } 
+            }
             pc += 1;
         }
     }
@@ -369,9 +369,8 @@ impl EVM {
         }
         println!("valid jump dest: {:?}", self.vaild_jump_dest);
         if !self.vaild_jump_dest.contains(&dest) {
-                panic!("invalid jump destination");
+            panic!("invalid jump destination");
         }
-
         self.pc = dest;
     }
 
@@ -388,6 +387,10 @@ impl EVM {
             }
             self.pc = dest;
         }
+    }
+
+    pub fn pc(&mut self) {
+        self.stack.push(U256::from(self.pc).into());
     }
 
     pub fn run(&mut self) {
