@@ -2,6 +2,7 @@ use anyhow::Result;
 use colored::Colorize;
 use naive_evm::op_code::*;
 use primitive_types::U256;
+use sha3::{Digest, Sha3_256};
 use std::{
     collections::{HashMap, HashSet},
     fmt::{Debug, Display, Error, Formatter},
@@ -495,6 +496,19 @@ impl EVM {
         self.stack.swap(idx1, idx2);
     }
 
+    pub fn sha3(&mut self) {
+        if self.stack.is_empty() {
+            panic!("stack underflow");
+        }
+        let offset = self.pop().as_u64() as usize;
+        let size = self.pop().as_u64() as usize;
+        let data = &self.memmory[offset..offset + size];
+        let mut hasher = sha3::Keccak256::new();
+        hasher.update(&data);
+        let result = hasher.finalize();
+        self.stack.push(U256::from(&result[..]).into());
+    }
+
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
             let op = self.next_instruction();
@@ -626,6 +640,9 @@ impl EVM {
                     let position = op - SWAP1 + 1;
                     self.swap(position as usize)
                 }
+                SHA3 => {
+                    self.sha3();
+                }
                 _ => unimplemented!(),
             }
         }
@@ -646,7 +663,7 @@ pub fn main() {
     "#;
     println!("{}", appname.green().bold());
 
-    let code = b"\x60\x01\x60\x02\x90";
+    let code = b"\x5F\x5F\x20";
     let mut evm = EVM::init(code);
     // check valid jumo dest
     evm.find_valid_jump_destinations();
