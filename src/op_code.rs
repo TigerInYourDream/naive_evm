@@ -27,3 +27,6 @@ pub const MSIZE: u8 = 0x59;
 pub const SSTORE: u8 = 0x55;
 pub const SLOAD: u8 = 0x54;
 pub const STOP: u8 = 0x00;
+pub const JUMPDEST: u8 = 0x5b;
+pub const JUMP: u8 = 0x56;
+pub const JUMPI: u8 = 0x57;

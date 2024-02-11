@@ -3,7 +3,7 @@ use colored::Colorize;
 use naive_evm::op_code::*;
 use primitive_types::U256;
 use std::{
-    collections::HashMap,
+    collections::{HashMap, HashSet},
     fmt::{Debug, Display, Error, Formatter},
     ops::{Deref, DerefMut},
 };
@@ -16,6 +16,7 @@ pub struct EVM {
     // memory
     memmory: Vec<u8>,
     storage: HashMap<U256, U256>,
+    vaild_jump_dest: HashSet<usize>,
 }
 #[derive(Clone, PartialEq, Eq)]
 pub struct TransparentU256(pub U256);
@@ -72,6 +73,7 @@ impl EVM {
             stack: Vec::with_capacity(256),
             memmory: Vec::new(),
             storage: HashMap::new(),
+            vaild_jump_dest: HashSet::new(),
         }
     }
 
@@ -336,8 +338,40 @@ impl EVM {
 
     pub fn stop(&mut self) {
         let text = "stop evm".red().bold();
-        println!("[evm]     --> {}",text) 
+        println!("[evm]     --> {}", text)
     }
+
+    pub fn find_valid_jump_destinations(&mut self) {
+        let mut pc = 0;
+        while pc < self.code.len() {
+            let op = self.code[pc];
+            if op == JUMPDEST {
+                self.vaild_jump_dest.insert(pc);
+            } else if op >= PUSH1 && op <= PUSH32 {
+                // skip the immediate
+                pc += (op - PUSH1 + 1) as usize;
+            } else {
+                pc += 1;
+            }
+        }
+    }
+
+    // empty func
+    pub fn jump_dest(&self) {}
+
+    // JUMP指令用于无条件跳转到一个新的程序计数器位置。它从堆栈中弹出一个元素，将这个元素设定为新的程序计数器（pc）的值。操作码是0x56，gas消耗为8
+    pub fn jump(&mut self) {
+        if self.stack.is_empty() {
+            panic!("stack underflow");
+        }
+        let dest = self.pop().as_usize();
+        if dest >= self.code.len() {
+            panic!("invalid jump destination");
+        }
+        self.pc = dest;
+    }
+    
+    pub fn 
 
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
@@ -428,6 +462,12 @@ impl EVM {
                     self.stop();
                     break;
                 }
+                JUMP => {
+                    self.jump();
+                }
+                JUMPDEST => {
+                    self.jump_dest();
+                }
                 _ => unimplemented!(),
             }
         }
@@ -448,10 +488,11 @@ pub fn main() {
     "#;
     println!("{}", appname.green().bold());
 
-    let code = b"\x00";
+    let code = b"\x60\x04\x56\x00\x5b"; 
     let mut evm = EVM::init(code);
     evm.run();
     println!("[memory]  --> {:?}", &evm.memmory[..]);
     println!("[stack]   --> {:?}", &evm.stack);
     println!("[storage] --> {:?}", &evm.storage);
+    println!("[pc]      --> {:?}", &evm.pc);
 }
