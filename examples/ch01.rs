@@ -6,6 +6,7 @@ use std::{
     collections::{HashMap, HashSet},
     fmt::{Debug, Display, Error, Formatter},
     ops::{Deref, DerefMut},
+    str::FromStr,
 };
 
 use std::num::NonZeroU32;
@@ -85,15 +86,15 @@ impl EVM {
     pub fn init(code: &[u8]) -> Self {
         // Hardcode block
         let current_block = Block {
-            blockhash: U256::from_dec_str(
-                "7527123fc877fe753b3122dc592671b4902ebf2b325dd2c7224a43c0cbeee3ca",
+            blockhash: U256::from_str(
+                "0x7527123fc877fe753b3122dc592671b4902ebf2b325dd2c7224a43c0cbeee3ca",
             )
             .unwrap(),
-            coinbase: U256::from_dec_str("388C818CA8B9251b393131C08a736A67ccB19297").unwrap(),
+            coinbase: U256::from_str("0x388C818CA8B9251b393131C08a736A67ccB19297").unwrap(),
             timestamp: 1625900000,
             number: 17871709,
-            prevrandao: U256::from_dec_str(
-                "ce124dee50136f3f93f19667fb4198c6b94eecbacfa300469e5280012757be94",
+            prevrandao: U256::from_str(
+                "0xce124dee50136f3f93f19667fb4198c6b94eecbacfa300469e5280012757be94",
             )
             .unwrap(),
             gaslimit: NonZeroU32::new(30).unwrap(),
@@ -477,6 +478,14 @@ impl EVM {
             .push(TransparentU256(self.current_block.basefee.get().into()));
     }
 
+    pub fn dup(&mut self, postion: usize) {
+        if let Some(value) = self.stack.get(self.stack.len() - postion) {
+            self.stack.push(value.clone());
+        } else {
+            panic!("stack underflow");
+        }
+    }
+
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
             let op = self.next_instruction();
@@ -600,6 +609,10 @@ impl EVM {
                 BASEFEE => {
                     self.basefee();
                 }
+                i if DUP1 <= i && i <= DUP16 => {
+                    let position = i - DUP1 + 1;
+                    self.dup(position as usize);
+                }
                 _ => unimplemented!(),
             }
         }
@@ -620,7 +633,7 @@ pub fn main() {
     "#;
     println!("{}", appname.green().bold());
 
-    let code = b"\x60\x01\x60\x06\x57\x00\x5b";
+    let code = b"\x60\x01\x60\x02\x80";
     let mut evm = EVM::init(code);
     // check valid jumo dest
     evm.find_valid_jump_destinations();

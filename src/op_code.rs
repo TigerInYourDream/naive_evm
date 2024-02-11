@@ -40,3 +40,5 @@ pub const GASLIMIT: u8 = 0x45;
 pub const CHAINID: u8 = 0x46;
 pub const SELFBALANCE: u8 = 0x47;
 pub const BASEFEE: u8 = 0x48;
+pub const DUP1: u8 = 0x80;
+pub const DUP16: u8 = 0x8F;
