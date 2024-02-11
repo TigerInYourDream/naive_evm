@@ -8,6 +8,21 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
+use std::num::NonZeroU32;
+
+#[derive(Debug)]
+struct Block {
+    blockhash: U256,
+    coinbase: U256,
+    timestamp: u64,
+    number: u64,
+    prevrandao: U256,
+    gaslimit: NonZeroU32,
+    chainid: u8,
+    selfbalance: u64,
+    basefee: NonZeroU32,
+}
+
 pub struct EVM {
     code: Vec<u8>,
     pc: usize,
@@ -17,6 +32,7 @@ pub struct EVM {
     memmory: Vec<u8>,
     storage: HashMap<U256, U256>,
     vaild_jump_dest: HashSet<usize>,
+    current_block: Block,
 }
 #[derive(Clone, PartialEq, Eq)]
 pub struct TransparentU256(pub U256);
@@ -67,6 +83,25 @@ impl Display for EVM {
 
 impl EVM {
     pub fn init(code: &[u8]) -> Self {
+        // Hardcode block
+        let current_block = Block {
+            blockhash: U256::from_dec_str(
+                "7527123fc877fe753b3122dc592671b4902ebf2b325dd2c7224a43c0cbeee3ca",
+            )
+            .unwrap(),
+            coinbase: U256::from_dec_str("388C818CA8B9251b393131C08a736A67ccB19297").unwrap(),
+            timestamp: 1625900000,
+            number: 17871709,
+            prevrandao: U256::from_dec_str(
+                "ce124dee50136f3f93f19667fb4198c6b94eecbacfa300469e5280012757be94",
+            )
+            .unwrap(),
+            gaslimit: NonZeroU32::new(30).unwrap(),
+            chainid: 1,
+            selfbalance: 100,
+            basefee: NonZeroU32::new(30).unwrap(),
+        };
+
         Self {
             code: code.to_vec(),
             pc: 0,
@@ -74,6 +109,7 @@ impl EVM {
             memmory: Vec::new(),
             storage: HashMap::new(),
             vaild_jump_dest: HashSet::new(),
+            current_block,
         }
     }
 
@@ -393,6 +429,54 @@ impl EVM {
         self.stack.push(U256::from(self.pc).into());
     }
 
+    pub fn blockhash(&mut self) {
+        if self.stack.is_empty() {
+            panic!("stack underflow");
+        }
+        let block_number = self.pop().as_u64();
+        if block_number == self.current_block.number {
+            let block_hash = self.current_block.blockhash;
+            self.stack.push(block_hash.into());
+        } else {
+            self.stack.push(0.into())
+        }
+    }
+
+    pub fn coinbase(&mut self) {
+        self.stack.push(self.current_block.coinbase.into());
+    }
+
+    pub fn timestamp(&mut self) {
+        self.stack.push(self.current_block.timestamp.into());
+    }
+
+    pub fn number(&mut self) {
+        self.stack.push(self.current_block.number.into());
+    }
+
+    pub fn prevrandao(&mut self) {
+        self.stack.push(self.current_block.prevrandao.into());
+    }
+
+    pub fn gaslimit(&mut self) {
+        self.stack
+            .push(TransparentU256(self.current_block.gaslimit.get().into()));
+    }
+
+    pub fn chainid(&mut self) {
+        self.stack
+            .push(TransparentU256(self.current_block.chainid.into()));
+    }
+
+    pub fn selfbalance(&mut self) {
+        self.stack.push(self.current_block.selfbalance.into());
+    }
+
+    pub fn basefee(&mut self) {
+        self.stack
+            .push(TransparentU256(self.current_block.basefee.get().into()));
+    }
+
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
             let op = self.next_instruction();
@@ -491,6 +575,31 @@ impl EVM {
                 JUMPI => {
                     self.jumpi();
                 }
+                BLOCKHASH => {
+                    self.blockhash();
+                }
+                COINBASE => {
+                    self.coinbase();
+                }
+                TIMESTAMP => {
+                    self.timestamp();
+                }
+                NUMBER => self.number(),
+                PREVRANDAO => {
+                    self.prevrandao();
+                }
+                GASLIMIT => {
+                    self.gaslimit();
+                }
+                CHAINID => {
+                    self.chainid();
+                }
+                SELFBALANCE => {
+                    self.selfbalance();
+                }
+                BASEFEE => {
+                    self.basefee();
+                }
                 _ => unimplemented!(),
             }
         }
@@ -519,5 +628,4 @@ pub fn main() {
     println!("[memory]  --> {:?}", &evm.memmory[..]);
     println!("[stack]   --> {:?}", &evm.stack);
     println!("[storage] --> {:?}", &evm.storage);
-    println!("[pc]      --> {:?}", &evm.pc);
 }
