@@ -486,6 +486,15 @@ impl EVM {
         }
     }
 
+    pub fn swap(&mut self, postion: usize) {
+        if self.stack.len() < postion + 1 {
+            panic!("stack underflow");
+        }
+        let idx1 = self.stack.len() - 1;
+        let idx2 = self.stack.len() - 1 - postion;
+        self.stack.swap(idx1, idx2);
+    }
+
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
             let op = self.next_instruction();
@@ -613,6 +622,10 @@ impl EVM {
                     let position = i - DUP1 + 1;
                     self.dup(position as usize);
                 }
+                i if SWAP1 <= i && i <= SWAP16 => {
+                    let position = op - SWAP1 + 1;
+                    self.swap(position as usize)
+                }
                 _ => unimplemented!(),
             }
         }
@@ -633,7 +646,7 @@ pub fn main() {
     "#;
     println!("{}", appname.green().bold());
 
-    let code = b"\x60\x01\x60\x02\x80";
+    let code = b"\x60\x01\x60\x02\x90";
     let mut evm = EVM::init(code);
     // check valid jumo dest
     evm.find_valid_jump_destinations();
