@@ -34,6 +34,7 @@ struct Account {
     code: Vec<u8>,
 }
 
+#[allow(dead_code)]
 #[derive(Debug)]
 struct Transaction {
     nonce: u64,
@@ -619,6 +620,10 @@ impl EVM {
 
     pub fn origin(&mut self) {
         self.stack.push(self.transaction.origin.clone().into());
+    }
+
+    pub fn caller(&mut self) {
+        self.stack.push(self.transaction.caller.clone().into());
     }
 
     pub fn run(&mut self) {
