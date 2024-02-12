@@ -551,6 +551,23 @@ impl EVM {
         self.stack.push((account.code.len() as u64).into());
     }
 
+    pub fn extcodecopy(&mut self) {
+        if self.stack.len() < 4 {
+            panic!("stack underflow");
+        }
+        let addr = self.pop();
+        let mem_offset = self.pop().as_u64() as usize;
+        let code_offset = self.pop().as_u64() as usize;
+        let length = self.pop().as_u64() as usize;
+
+        let code =
+            &self.account_db.get(&addr).unwrap().code.clone()[code_offset..code_offset + length];
+        while self.memmory.len() < mem_offset + length {
+            self.memmory.push(0.into());
+        }
+        self.memmory[mem_offset..mem_offset + length].copy_from_slice(&code[..]);
+    }
+
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
             let op = self.next_instruction();
@@ -691,6 +708,9 @@ impl EVM {
                 EXTCODESIZE => {
                     self.extcodesize();
                 }
+                EXTCODECOPY => {
+                    self.extcodecopy();
+                }
                 _ => unimplemented!(),
             }
         }
@@ -712,12 +732,13 @@ pub fn main() {
     println!("{}", appname.green().bold());
 
     let code =
-        b"\x73\x9b\xbf\xed\x68\x89\x32\x2e\x01\x6e\x0a\x02\xee\x45\x9d\x30\x6f\xc1\x95\x45\xd8\x3B";
+        b"\x60\x04\x5F\x5F\x73\x9b\xbf\xed\x68\x89\x32\x2e\x01\x6e\x0a\x02\xee\x45\x9d\x30\x6f\xc1\x95\x45\xd8\x3C";
     let mut evm = EVM::init(code);
     // check valid jumo dest
     evm.find_valid_jump_destinations();
     evm.run();
-    println!("[memory]  --> {:?}", &evm.memmory[..]);
-    println!("[stack]   --> {:?}", &evm.stack);
-    println!("[storage] --> {:?}", &evm.storage);
+    println!("[memoryhex]--> {:?}", hex::encode(&evm.memmory));
+    println!("[memory]   --> {:?}", &evm.memmory[..]);
+    println!("[stack]    --> {:?}", &evm.stack);
+    println!("[storage]  --> {:?}", &evm.storage);
 }
