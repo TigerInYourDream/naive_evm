@@ -626,6 +626,10 @@ impl EVM {
         self.stack.push(self.transaction.caller.clone().into());
     }
 
+    pub fn callvalue(&mut self) {
+        self.stack.push(self.transaction.value.into());
+    }
+
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
             let op = self.next_instruction();
@@ -770,6 +774,18 @@ impl EVM {
                 }
                 EXTCODEHASH => {
                     self.extcodehash();
+                }
+                ADDRESS => {
+                    self.address();
+                }
+                ORIGIN => {
+                    self.origin();
+                }
+                CALLER => {
+                    self.caller();
+                }
+                CALLVALUE => {
+                    self.callvalue();
                 }
                 _ => unimplemented!(),
             }

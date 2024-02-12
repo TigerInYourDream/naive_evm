@@ -52,3 +52,4 @@ pub const EXTCODEHASH: u8 = 0x3F;
 pub const ADDRESS: u8 = 0x30;
 pub const ORIGIN: u8 = 0x32;
 pub const CALLER: u8 = 0x33;
+pub const CALLVALUE: u8 = 0x34;
