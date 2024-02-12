@@ -49,3 +49,5 @@ pub const BALANCE: u8 = 0x31;
 pub const EXTCODESIZE: u8 = 0x3B;
 pub const EXTCODECOPY: u8 = 0x3C;
 pub const EXTCODEHASH: u8 = 0x3F;
+pub const ADDRESS: u8 = 0x30;
+pub const ORIGIN: u8 = 0x32;

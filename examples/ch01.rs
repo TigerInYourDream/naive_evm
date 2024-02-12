@@ -34,6 +34,22 @@ struct Account {
     code: Vec<u8>,
 }
 
+#[derive(Debug)]
+struct Transaction {
+    nonce: u64,
+    gas_price: u64,
+    gas_limit: u64,
+    to: TransparentU256,
+    value: u64,
+    data: TransparentU256,
+    caller: TransparentU256,
+    origin: TransparentU256,
+    this_addr: TransparentU256,
+    v: u64,
+    r: u64,
+    s: u64,
+}
+
 pub struct EVM {
     code: Vec<u8>,
     pc: usize,
@@ -45,6 +61,7 @@ pub struct EVM {
     vaild_jump_dest: HashSet<usize>,
     current_block: Block,
     account_db: HashMap<TransparentU256, Account>,
+    transaction: Transaction,
 }
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct TransparentU256(pub U256);
@@ -127,6 +144,21 @@ impl EVM {
             },
         );
 
+        let transaction = Transaction {
+            nonce: 0,
+            gas_price: 1,
+            gas_limit: 21000,
+            to: U256::from("").into(),
+            value: 0,
+            data: U256::from("").into(),
+            caller: U256::from("0x00").into(),
+            origin: U256::from("0x00").into(),
+            this_addr: U256::from("0x00").into(),
+            v: 0,
+            r: 0,
+            s: 0,
+        };
+
         Self {
             code: code.to_vec(),
             pc: 0,
@@ -136,6 +168,7 @@ impl EVM {
             vaild_jump_dest: HashSet::new(),
             current_block,
             account_db,
+            transaction,
         }
     }
 
@@ -580,6 +613,14 @@ impl EVM {
         self.stack.push(U256::from(&result[..]).into());
     }
 
+    pub fn address(&mut self) {
+        self.stack.push(self.transaction.this_addr.clone().into());
+    }
+
+    pub fn origin(&mut self) {
+        self.stack.push(self.transaction.origin.clone().into());
+    }
+
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
             let op = self.next_instruction();
@@ -589,7 +630,6 @@ impl EVM {
                     self.push(size as usize);
                 }
                 PUSH0 => self.stack.push(0.into()),
-                // pop()
                 POP => {
                     self.pop();
                 }
