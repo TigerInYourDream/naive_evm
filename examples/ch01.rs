@@ -538,9 +538,17 @@ impl EVM {
             panic!("stack underflow");
         }
         let address = self.pop();
-        println!("address: {:?}", address);
         let account = self.account_db.get(&address).unwrap();
         self.stack.push(account.balance.into());
+    }
+
+    pub fn extcodesize(&mut self) {
+        if self.stack.is_empty() {
+            panic!("stack underflow");
+        }
+        let address = self.pop();
+        let account = self.account_db.get(&address).unwrap();
+        self.stack.push((account.code.len() as u64).into());
     }
 
     pub fn run(&mut self) {
@@ -680,6 +688,9 @@ impl EVM {
                 BALANCE => {
                     self.balance();
                 }
+                EXTCODESIZE => {
+                    self.extcodesize();
+                }
                 _ => unimplemented!(),
             }
         }
@@ -701,7 +712,7 @@ pub fn main() {
     println!("{}", appname.green().bold());
 
     let code =
-        b"\x73\x9b\xbf\xed\x68\x89\x32\x2e\x01\x6e\x0a\x02\xee\x45\x9d\x30\x6f\xc1\x95\x45\xd8\x31";
+        b"\x73\x9b\xbf\xed\x68\x89\x32\x2e\x01\x6e\x0a\x02\xee\x45\x9d\x30\x6f\xc1\x95\x45\xd8\x3B";
     let mut evm = EVM::init(code);
     // check valid jumo dest
     evm.find_valid_jump_destinations();

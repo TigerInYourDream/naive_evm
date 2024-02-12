@@ -46,3 +46,4 @@ pub const SWAP1: u8 = 0x90;
 pub const SWAP16: u8 = 0x9F;
 pub const SHA3: u8 = 0x20;
 pub const BALANCE: u8 = 0x31;
+pub const EXTCODESIZE: u8 = 0x3B;
