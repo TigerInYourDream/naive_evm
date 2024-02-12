@@ -568,6 +568,18 @@ impl EVM {
         self.memmory[mem_offset..mem_offset + length].copy_from_slice(&code[..]);
     }
 
+    pub fn extcodehash(&mut self) {
+        if self.stack.is_empty() {
+            panic!("stack underflow");
+        }
+        let address = self.pop();
+        let account = self.account_db.get(&address).unwrap();
+        let mut hasher = sha3::Keccak256::new();
+        hasher.update(&account.code);
+        let result = hasher.finalize();
+        self.stack.push(U256::from(&result[..]).into());
+    }
+
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
             let op = self.next_instruction();
@@ -711,6 +723,9 @@ impl EVM {
                 EXTCODECOPY => {
                     self.extcodecopy();
                 }
+                EXTCODEHASH => {
+                    self.extcodehash();
+                }
                 _ => unimplemented!(),
             }
         }
@@ -732,7 +747,7 @@ pub fn main() {
     println!("{}", appname.green().bold());
 
     let code =
-        b"\x60\x04\x5F\x5F\x73\x9b\xbf\xed\x68\x89\x32\x2e\x01\x6e\x0a\x02\xee\x45\x9d\x30\x6f\xc1\x95\x45\xd8\x3C";
+        b"\x73\x9b\xbf\xed\x68\x89\x32\x2e\x01\x6e\x0a\x02\xee\x45\x9d\x30\x6f\xc1\x95\x45\xd8\x3F";
     let mut evm = EVM::init(code);
     // check valid jumo dest
     evm.find_valid_jump_destinations();
