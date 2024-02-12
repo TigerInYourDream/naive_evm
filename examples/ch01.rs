@@ -2,7 +2,7 @@ use anyhow::Result;
 use colored::Colorize;
 use naive_evm::op_code::*;
 use primitive_types::U256;
-use sha3::{Digest, Sha3_256};
+use sha3::Digest;
 use std::{
     collections::{HashMap, HashSet},
     fmt::{Debug, Display, Error, Formatter},
@@ -25,6 +25,15 @@ struct Block {
     basefee: NonZeroU32,
 }
 
+#[allow(dead_code)]
+#[derive(Debug)]
+struct Account {
+    balance: u64,
+    nonce: u64,
+    storage: HashMap<String, String>,
+    code: Vec<u8>,
+}
+
 pub struct EVM {
     code: Vec<u8>,
     pc: usize,
@@ -35,8 +44,9 @@ pub struct EVM {
     storage: HashMap<U256, U256>,
     vaild_jump_dest: HashSet<usize>,
     current_block: Block,
+    account_db: HashMap<TransparentU256, Account>,
 }
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Clone, PartialEq, Eq, Hash)]
 pub struct TransparentU256(pub U256);
 
 impl Debug for TransparentU256 {
@@ -104,6 +114,19 @@ impl EVM {
             basefee: NonZeroU32::new(30).unwrap(),
         };
 
+        // HARD CODE ACCOUNT
+        let mut account_db: HashMap<TransparentU256, Account> = HashMap::new();
+        account_db.insert(
+            // change it to TransparentU256
+            U256::from("0x9bbfed6889322e016e0a02ee459d306fc19545d8").into(),
+            Account {
+                balance: 100,
+                nonce: 1,
+                storage: HashMap::new(),
+                code: vec![0x60, 0x00, 0x60, 0x00],
+            },
+        );
+
         Self {
             code: code.to_vec(),
             pc: 0,
@@ -112,6 +135,7 @@ impl EVM {
             storage: HashMap::new(),
             vaild_jump_dest: HashSet::new(),
             current_block,
+            account_db,
         }
     }
 
@@ -509,6 +533,16 @@ impl EVM {
         self.stack.push(U256::from(&result[..]).into());
     }
 
+    pub fn balance(&mut self) {
+        if self.stack.is_empty() {
+            panic!("stack underflow");
+        }
+        let address = self.pop();
+        println!("address: {:?}", address);
+        let account = self.account_db.get(&address).unwrap();
+        self.stack.push(account.balance.into());
+    }
+
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
             let op = self.next_instruction();
@@ -643,6 +677,9 @@ impl EVM {
                 SHA3 => {
                     self.sha3();
                 }
+                BALANCE => {
+                    self.balance();
+                }
                 _ => unimplemented!(),
             }
         }
@@ -663,7 +700,8 @@ pub fn main() {
     "#;
     println!("{}", appname.green().bold());
 
-    let code = b"\x5F\x5F\x20";
+    let code =
+        b"\x73\x9b\xbf\xed\x68\x89\x32\x2e\x01\x6e\x0a\x02\xee\x45\x9d\x30\x6f\xc1\x95\x45\xd8\x31";
     let mut evm = EVM::init(code);
     // check valid jumo dest
     evm.find_valid_jump_destinations();

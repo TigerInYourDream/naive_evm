@@ -45,3 +45,4 @@ pub const DUP16: u8 = 0x8F;
 pub const SWAP1: u8 = 0x90;
 pub const SWAP16: u8 = 0x9F;
 pub const SHA3: u8 = 0x20;
+pub const BALANCE: u8 = 0x31;
