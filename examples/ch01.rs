@@ -71,6 +71,7 @@ pub struct EVM {
     account_db: HashMap<TransparentU256, Account>,
     transaction: Transaction,
     log: Vec<EVMLog>,
+    return_data: Vec<u8>,
 }
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct TransparentU256(pub U256);
@@ -179,6 +180,7 @@ impl EVM {
             account_db,
             transaction,
             log: Vec::new(),
+            return_data: Vec::new(),
         }
     }
 
@@ -656,6 +658,18 @@ impl EVM {
         });
     }
 
+    pub fn return_op(&mut self) {
+        if self.stack.len() < 2 {
+            panic!("stack underflow");
+        }
+        let mem_offset = self.pop().as_u32() as usize;
+        let length = self.pop().as_u32() as usize;
+        if self.memmory.len() < mem_offset + length {
+            self.memmory.resize(mem_offset + length, 0.into());
+        }
+        self.return_data = self.memmory[mem_offset..mem_offset + length].to_vec();
+    }
+
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
             let op = self.next_instruction();
@@ -825,6 +839,9 @@ impl EVM {
                 LOG4 => {
                     self.log(3);
                 }
+                RETURN => {
+                    self.return_op();
+                }
                 _ => unimplemented!(),
             }
         }
@@ -845,7 +862,7 @@ pub fn main() {
     "#;
     println!("{}", appname.green().bold());
 
-    let code = b"\x60\xaa\x60\x00\x52\x60\x01\x60\x1f\xa0";
+    let code = b"\x60\xa2\x60\x00\x52\x60\x01\x60\x1f\xf3";
     let mut evm = EVM::init(code);
     // check valid jumo dest
     evm.find_valid_jump_destinations();
@@ -855,4 +872,5 @@ pub fn main() {
     println!("[stack]    --> {:?}", &evm.stack);
     println!("[storage]  --> {:?}", &evm.storage);
     println!("[log]      --> {:?}", &evm.log);
+    println!("[return]   --> {:?}", hex::encode(&evm.return_data));
 }

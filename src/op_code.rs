@@ -58,3 +58,4 @@ pub const LOG1: u8 = 0xA1;
 pub const LOG2: u8 = 0xA2;
 pub const LOG3: u8 = 0xA3;
 pub const LOG4: u8 = 0xA4;
+pub const RETURN: u8 = 0xF3;
