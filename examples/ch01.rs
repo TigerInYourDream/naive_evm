@@ -3,14 +3,13 @@ use colored::Colorize;
 use naive_evm::op_code::*;
 use primitive_types::U256;
 use sha3::Digest;
+use std::num::NonZeroU32;
 use std::{
     collections::{HashMap, HashSet},
     fmt::{Debug, Display, Error, Formatter},
     ops::{Deref, DerefMut},
     str::FromStr,
 };
-
-use std::num::NonZeroU32;
 
 #[derive(Debug)]
 struct Block {
@@ -51,6 +50,14 @@ struct Transaction {
     s: u64,
 }
 
+#[allow(dead_code)]
+#[derive(Debug)]
+struct EVMLog {
+    address: TransparentU256,
+    data: TransparentU256,
+    topics: Vec<TransparentU256>,
+}
+
 pub struct EVM {
     code: Vec<u8>,
     pc: usize,
@@ -63,6 +70,7 @@ pub struct EVM {
     current_block: Block,
     account_db: HashMap<TransparentU256, Account>,
     transaction: Transaction,
+    log: Vec<EVMLog>,
 }
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct TransparentU256(pub U256);
@@ -170,6 +178,7 @@ impl EVM {
             current_block,
             account_db,
             transaction,
+            log: Vec::new(),
         }
     }
 
@@ -187,10 +196,8 @@ impl EVM {
     }
 
     pub fn pop(&mut self) -> TransparentU256 {
-        if self.stack.is_empty() {
-            panic!("stack underflow");
-        }
-        self.stack.pop().unwrap()
+        // pop None
+        self.stack.pop().unwrap_or(U256::zero().into())
     }
 
     pub fn add(&mut self) {
@@ -630,6 +637,25 @@ impl EVM {
         self.stack.push(self.transaction.value.into());
     }
 
+    pub fn log(&mut self, num_topics: usize) {
+        if self.stack.len() < 2 + num_topics {
+            panic!("stack underflow");
+        }
+        let mem_offset = self.pop().as_u32() as usize;
+        let length = self.pop().as_u32() as usize;
+        let num_topics = self.pop().as_u64() as usize;
+        let mut topics = Vec::with_capacity(num_topics);
+        for _ in 0..num_topics {
+            topics.push(self.pop());
+        }
+        let data = &self.memmory[mem_offset..mem_offset + length];
+        self.log.push(EVMLog {
+            address: self.transaction.this_addr.clone(),
+            data: U256::from(data).into(),
+            topics,
+        });
+    }
+
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
             let op = self.next_instruction();
@@ -787,6 +813,18 @@ impl EVM {
                 CALLVALUE => {
                     self.callvalue();
                 }
+                LOG0 => {
+                    self.log(0);
+                }
+                LOG1 => {
+                    self.log(1);
+                }
+                LOG3 => {
+                    self.log(2);
+                }
+                LOG4 => {
+                    self.log(3);
+                }
                 _ => unimplemented!(),
             }
         }
@@ -807,8 +845,7 @@ pub fn main() {
     "#;
     println!("{}", appname.green().bold());
 
-    let code =
-        b"\x73\x9b\xbf\xed\x68\x89\x32\x2e\x01\x6e\x0a\x02\xee\x45\x9d\x30\x6f\xc1\x95\x45\xd8\x3F";
+    let code = b"\x60\xaa\x60\x00\x52\x60\x01\x60\x1f\xa0";
     let mut evm = EVM::init(code);
     // check valid jumo dest
     evm.find_valid_jump_destinations();
@@ -817,4 +854,5 @@ pub fn main() {
     println!("[memory]   --> {:?}", &evm.memmory[..]);
     println!("[stack]    --> {:?}", &evm.stack);
     println!("[storage]  --> {:?}", &evm.storage);
+    println!("[log]      --> {:?}", &evm.log);
 }
