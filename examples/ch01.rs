@@ -674,6 +674,19 @@ impl EVM {
         self.stack.push((self.return_data.len() as u64).into());
     }
 
+    pub fn return_data_copy(&mut self) {
+        if self.stack.len() < 3 {
+            panic!("stack underflow");
+        }
+        let mem_offset = self.pop().as_u32() as usize;
+        let length = self.pop().as_u32() as usize;
+        let data = &self.return_data;
+        if self.memmory.len() < mem_offset + length {
+            self.memmory.resize(mem_offset + length, 0.into());
+        }
+        self.memmory[mem_offset..mem_offset + length].copy_from_slice(&data[..]);
+    }
+
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
             let op = self.next_instruction();
@@ -869,10 +882,11 @@ pub fn main() {
     "#;
     println!("{}", appname.green().bold());
 
-    let code = b"\x60\xa2\x60\x00\x52\x60\x01\x60\x1f\xf3";
+    let code = b"\x3D";
     let mut evm = EVM::init(code);
     // check valid jumo dest
     evm.find_valid_jump_destinations();
+    evm.return_data.append(&mut vec![0xaa, 0xaa]);
     evm.run();
     println!("[memoryhex]--> {:?}", hex::encode(&evm.memmory));
     println!("[memory]   --> {:?}", &evm.memmory[..]);
