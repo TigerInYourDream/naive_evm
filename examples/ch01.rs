@@ -679,12 +679,16 @@ impl EVM {
             panic!("stack underflow");
         }
         let mem_offset = self.pop().as_u32() as usize;
+        let return_offset = self.pop().as_u32() as usize;
         let length = self.pop().as_u32() as usize;
-        let data = &self.return_data;
+        if return_offset + length > self.return_data.len() {
+            panic!("return data too short");
+        }
         if self.memmory.len() < mem_offset + length {
             self.memmory.resize(mem_offset + length, 0.into());
         }
-        self.memmory[mem_offset..mem_offset + length].copy_from_slice(&data[..]);
+        self.memmory[mem_offset..mem_offset + length]
+            .copy_from_slice(&self.return_data[return_offset..return_offset + length]);
     }
 
     pub fn run(&mut self) {
@@ -862,6 +866,9 @@ impl EVM {
                 RETURNDATASIZE => {
                     self.return_data_size();
                 }
+                RETURNDATACOPY => {
+                    self.return_data_copy();
+                }
                 _ => unimplemented!(),
             }
         }
@@ -882,16 +889,16 @@ pub fn main() {
     "#;
     println!("{}", appname.green().bold());
 
-    let code = b"\x3D";
+    let code = b"\x60\x02\x5F\x5F\x3E";
     let mut evm = EVM::init(code);
     // check valid jumo dest
     evm.find_valid_jump_destinations();
     evm.return_data.append(&mut vec![0xaa, 0xaa]);
     evm.run();
-    println!("[memoryhex]--> {:?}", hex::encode(&evm.memmory));
-    println!("[memory]   --> {:?}", &evm.memmory[..]);
-    println!("[stack]    --> {:?}", &evm.stack);
-    println!("[storage]  --> {:?}", &evm.storage);
-    println!("[log]      --> {:?}", &evm.log);
-    println!("[return]   --> {:?}", hex::encode(&evm.return_data));
+    println!("[memoryhex]    --> {:?}", hex::encode(&evm.memmory));
+    println!("[memory]       --> {:?}", &evm.memmory[..]);
+    println!("[stack]        --> {:?}", &evm.stack);
+    println!("[storage]      --> {:?}", &evm.storage);
+    println!("[log]          --> {:?}", &evm.log);
+    println!("[return_data]  --> {:?}", hex::encode(&evm.return_data));
 }
