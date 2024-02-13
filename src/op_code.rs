@@ -61,3 +61,5 @@ pub const LOG4: u8 = 0xA4;
 pub const RETURN: u8 = 0xF3;
 pub const RETURNDATASIZE: u8 = 0x3D;
 pub const RETURNDATACOPY: u8 = 0x3E;
+pub const REVERT: u8 = 0xFD;
+pub const INVALID: u8 = 0xFE;

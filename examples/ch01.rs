@@ -693,6 +693,24 @@ impl EVM {
             .copy_from_slice(&self.return_data[return_offset..return_offset + length]);
     }
 
+    pub fn revert(&mut self) {
+        if self.stack.len() < 2 {
+            panic!("stack underflow");
+        }
+        let mem_offset = self.pop().as_u32() as usize;
+        let length = self.pop().as_u32() as usize;
+
+        if self.memmory.len() < mem_offset + length {
+            self.memmory.resize(mem_offset + length, 0.into());
+        }
+        self.return_data = self.memmory[mem_offset..mem_offset + length].to_vec();
+        self.success = false;
+    }
+
+    pub fn invalid(&mut self) {
+        self.success = false;
+    }
+
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
             let op = self.next_instruction();
@@ -870,6 +888,12 @@ impl EVM {
                 }
                 RETURNDATACOPY => {
                     self.return_data_copy();
+                }
+                REVERT => {
+                    self.revert();
+                }
+                INVALID => {
+                    self.invalid();
                 }
                 _ => unimplemented!(),
             }
