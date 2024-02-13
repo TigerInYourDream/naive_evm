@@ -72,6 +72,7 @@ pub struct EVM {
     transaction: Transaction,
     log: Vec<EVMLog>,
     return_data: Vec<u8>,
+    success: bool,
 }
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct TransparentU256(pub U256);
@@ -181,6 +182,7 @@ impl EVM {
             transaction,
             log: Vec::new(),
             return_data: Vec::new(),
+            success: true,
         }
     }
 
