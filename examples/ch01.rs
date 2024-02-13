@@ -24,6 +24,28 @@ struct Block {
     basefee: NonZeroU32,
 }
 
+impl Default for Block {
+    fn default() -> Self {
+        Block {
+            blockhash: U256::from_str(
+                "0x7527123fc877fe753b3122dc592671b4902ebf2b325dd2c7224a43c0cbeee3ca",
+            )
+            .unwrap(),
+            coinbase: U256::from_str("0x388C818CA8B9251b393131C08a736A67ccB19297").unwrap(),
+            timestamp: 1625900000,
+            number: 17871709,
+            prevrandao: U256::from_str(
+                "0xce124dee50136f3f93f19667fb4198c6b94eecbacfa300469e5280012757be94",
+            )
+            .unwrap(),
+            gaslimit: NonZeroU32::new(30).unwrap(),
+            chainid: 1,
+            selfbalance: 100,
+            basefee: NonZeroU32::new(30).unwrap(),
+        }
+    }
+}
+
 #[allow(dead_code)]
 #[derive(Debug)]
 struct Account {
@@ -35,7 +57,7 @@ struct Account {
 
 #[allow(dead_code)]
 #[derive(Debug)]
-struct Transaction {
+pub struct Transaction {
     nonce: u64,
     gas_price: u64,
     gas_limit: u64,
@@ -48,6 +70,25 @@ struct Transaction {
     v: u64,
     r: u64,
     s: u64,
+}
+
+impl Default for Transaction {
+    fn default() -> Self {
+        Transaction {
+            nonce: 0,
+            gas_price: 1,
+            gas_limit: 21000,
+            to: U256::from("").into(),
+            value: 0,
+            data: U256::from("").into(),
+            caller: U256::from("0x9bbfed6889322e016e0a02ee459d306fc19545d8").into(),
+            origin: U256::from("0x1000000000000000000000000000000000000c42").into(),
+            this_addr: U256::from("0x00").into(),
+            v: 0,
+            r: 0,
+            s: 0,
+        }
+    }
 }
 
 #[allow(dead_code)]
@@ -122,26 +163,7 @@ impl Display for EVM {
 }
 
 impl EVM {
-    pub fn init(code: &[u8]) -> Self {
-        // Hardcode block
-        let current_block = Block {
-            blockhash: U256::from_str(
-                "0x7527123fc877fe753b3122dc592671b4902ebf2b325dd2c7224a43c0cbeee3ca",
-            )
-            .unwrap(),
-            coinbase: U256::from_str("0x388C818CA8B9251b393131C08a736A67ccB19297").unwrap(),
-            timestamp: 1625900000,
-            number: 17871709,
-            prevrandao: U256::from_str(
-                "0xce124dee50136f3f93f19667fb4198c6b94eecbacfa300469e5280012757be94",
-            )
-            .unwrap(),
-            gaslimit: NonZeroU32::new(30).unwrap(),
-            chainid: 1,
-            selfbalance: 100,
-            basefee: NonZeroU32::new(30).unwrap(),
-        };
-
+    pub fn init(code: &[u8], transaction: Transaction) -> Self {
         // HARD CODE ACCOUNT
         let mut account_db: HashMap<TransparentU256, Account> = HashMap::new();
         account_db.insert(
@@ -155,20 +177,16 @@ impl EVM {
             },
         );
 
-        let transaction = Transaction {
-            nonce: 0,
-            gas_price: 1,
-            gas_limit: 21000,
-            to: U256::from("").into(),
-            value: 0,
-            data: U256::from("").into(),
-            caller: U256::from("0x00").into(),
-            origin: U256::from("0x00").into(),
-            this_addr: U256::from("0x00").into(),
-            v: 0,
-            r: 0,
-            s: 0,
-        };
+        // init another account
+        account_db.insert(
+            U256::from("0x1000000000000000000000000000000000000c42").into(),
+            Account {
+                balance: 0,
+                nonce: 1,
+                storage: HashMap::new(),
+                code: Vec::from(b"\x60\x42\x60\x00\x52\x60\x01\x60\x1f\xf3"),
+            },
+        );
 
         Self {
             code: code.to_vec(),
@@ -177,7 +195,7 @@ impl EVM {
             memmory: Vec::new(),
             storage: HashMap::new(),
             vaild_jump_dest: HashSet::new(),
-            current_block,
+            current_block: Block::default(),
             account_db,
             transaction,
             log: Vec::new(),
@@ -711,6 +729,64 @@ impl EVM {
         self.success = false;
     }
 
+    pub fn call(&mut self) {
+        if self.stack.len() < 7 {
+            panic!("stack underflow");
+        }
+        let _gas = self.pop().as_u64();
+        let to_addr = self.pop();
+        // update low u64
+        let value = self.pop().low_u32() as u64;
+        let mem_in_start = self.pop().as_u64() as usize;
+        let mem_in_size = self.pop().as_u64() as usize;
+        let mem_out_start = self.pop().as_u64() as usize;
+        let mem_out_size = self.pop().as_u64() as usize;
+
+        // 拓展内存
+        if self.memmory.len() < mem_in_start + mem_in_size {
+            self.memmory.resize(mem_in_start + mem_in_size, 0.into());
+        }
+        let data = &self.memmory[mem_in_start..mem_in_start + mem_in_size];
+        let account_source = self.account_db.get_mut(&self.transaction.caller).unwrap();
+        if account_source.balance < value {
+            println!("balance: {:?}", account_source.balance);
+            self.success = false;
+            println!("Insufficient balance for the transaction!");
+            self.stack.push(0.into());
+            return;
+        }
+        account_source.balance -= value;
+
+        let account_target = self.account_db.get_mut(&to_addr).unwrap();
+        account_target.balance += value;
+
+        let txn = Transaction {
+            data: U256::from(data).into(),
+            value: value,
+            caller: self.transaction.this_addr.clone(),
+            origin: self.transaction.origin.clone(),
+            gas_price: self.transaction.gas_price,
+            gas_limit: self.transaction.gas_limit,
+            ..Transaction::default()
+        };
+
+        let mut evm_call = EVM::init(&account_target.code, txn);
+        evm_call.run();
+
+        if self.memmory.len() < mem_out_size + mem_out_start {
+            self.memmory.resize(mem_out_size + mem_out_start, 0.into());
+        }
+
+        self.memmory[mem_out_start..mem_out_start + mem_out_size]
+            .copy_from_slice(&evm_call.return_data);
+
+        if evm_call.success {
+            self.stack.push(1.into());
+        } else {
+            self.stack.push(0.into());
+        }
+    }
+
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
             let op = self.next_instruction();
@@ -895,6 +971,9 @@ impl EVM {
                 INVALID => {
                     self.invalid();
                 }
+                CALL => {
+                    self.call();
+                }
                 _ => unimplemented!(),
             }
         }
@@ -915,10 +994,12 @@ pub fn main() {
     "#;
     println!("{}", appname.green().bold());
 
-    let code = b"\x60\x02\x5F\x5F\x3E";
-    let mut evm = EVM::init(code);
+    let code = b"\x60\x01\x60\x1f\x5f\x5f\x60\x01\x73\x10\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0c\x42\x5f\xf1\x5f\x51";
+    // need write right txn first see detail in default
+    let mut evm = EVM::init(code, Transaction::default());
     // check valid jumo dest
     evm.find_valid_jump_destinations();
+    // add return data
     evm.return_data.append(&mut vec![0xaa, 0xaa]);
     evm.run();
     println!("[memoryhex]    --> {:?}", hex::encode(&evm.memmory));
