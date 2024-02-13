@@ -670,6 +670,10 @@ impl EVM {
         self.return_data = self.memmory[mem_offset..mem_offset + length].to_vec();
     }
 
+    pub fn return_data_size(&mut self) {
+        self.stack.push((self.return_data.len() as u64).into());
+    }
+
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
             let op = self.next_instruction();
@@ -841,6 +845,9 @@ impl EVM {
                 }
                 RETURN => {
                     self.return_op();
+                }
+                RETURNDATASIZE => {
+                    self.return_data_size();
                 }
                 _ => unimplemented!(),
             }
