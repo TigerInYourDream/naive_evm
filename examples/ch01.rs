@@ -83,7 +83,7 @@ impl Default for Transaction {
             data: U256::from("").into(),
             caller: U256::from("0x9bbfed6889322e016e0a02ee459d306fc19545d8").into(),
             origin: U256::from("0x1000000000000000000000000000000000000c42").into(),
-            this_addr: U256::from("0x00").into(),
+            this_addr: U256::from("0x1000000000000000000000000000000000000c42").into(),
             v: 0,
             r: 0,
             s: 0,
@@ -853,6 +853,27 @@ impl EVM {
         }
     }
 
+    pub fn selfdestruct(&mut self) {
+        if self.stack.is_empty() {
+            panic!("stack underflow");
+        }
+        let addr = self.pop();
+        let account = self.account_db.entry(addr.clone()).or_insert(Account {
+            balance: 0,
+            nonce: 0,
+            storage: HashMap::new(),
+            code: Vec::new(),
+        });
+        let balance = account.balance;
+        account.balance = 0;
+
+        let account_target = {
+            let account_target = self.account_db.get_mut(&addr).unwrap();
+            account_target
+        };
+        account_target.balance += balance;
+    }
+
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
             let op = self.next_instruction();
@@ -1047,6 +1068,9 @@ impl EVM {
                 STATICCALL => {
                     self.static_call();
                 }
+                SELFDESTRUCT => {
+                    self.selfdestruct();
+                }
                 _ => unimplemented!(),
             }
         }
@@ -1066,8 +1090,7 @@ pub fn main() {
     "#;
     println!("{}", appname.green().bold());
 
-    let code = b"\x60\x01\x60\x1f\x5f\x5f\x73\x10\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0c\x42\x5f\xfA\x5f\x51";
-
+    let code = b"\x60\x20\xff";
     // need write right txn first see detail in default
     let mut evm = EVM::init(code, Transaction::default(), false);
     // check valid jumo dest
@@ -1081,4 +1104,5 @@ pub fn main() {
     println!("[storage]      --> {:?}", &evm.storage);
     println!("[log]          --> {:?}", &evm.log);
     println!("[return_data]  --> {:?}", hex::encode(&evm.return_data));
+    println!("[account_bd]   --> {:?}", &evm.account_db);
 }

@@ -65,3 +65,4 @@ pub const REVERT: u8 = 0xFD;
 pub const INVALID: u8 = 0xFE;
 pub const CALL: u8 = 0xF1;
 pub const STATICCALL: u8 = 0xFA;
+pub const SELFDESTRUCT: u8 = 0xFF;
