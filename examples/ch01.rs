@@ -114,6 +114,7 @@ pub struct EVM {
     log: Vec<EVMLog>,
     return_data: Vec<u8>,
     success: bool,
+    is_static: bool,
 }
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct TransparentU256(pub U256);
@@ -163,7 +164,7 @@ impl Display for EVM {
 }
 
 impl EVM {
-    pub fn init(code: &[u8], transaction: Transaction) -> Self {
+    pub fn init(code: &[u8], transaction: Transaction, is_static: bool) -> Self {
         // HARD CODE ACCOUNT
         let mut account_db: HashMap<TransparentU256, Account> = HashMap::new();
         account_db.insert(
@@ -201,6 +202,7 @@ impl EVM {
             log: Vec::new(),
             return_data: Vec::new(),
             success: true,
+            is_static,
         }
     }
 
@@ -737,6 +739,12 @@ impl EVM {
         let to_addr = self.pop();
         // update low u64
         let value = self.pop().low_u32() as u64;
+
+        if self.is_static && value != 0 {
+            self.success = false;
+            panic!("State changing operation detected during STATICCALL!");
+        }
+
         let mem_in_start = self.pop().as_u64() as usize;
         let mem_in_size = self.pop().as_u64() as usize;
         let mem_out_start = self.pop().as_u64() as usize;
@@ -770,7 +778,7 @@ impl EVM {
             ..Transaction::default()
         };
 
-        let mut evm_call = EVM::init(&account_target.code, txn);
+        let mut evm_call = EVM::init(&account_target.code, txn, false);
         evm_call.run();
 
         if self.memmory.len() < mem_out_size + mem_out_start {
@@ -781,6 +789,64 @@ impl EVM {
             .copy_from_slice(&evm_call.return_data);
 
         if evm_call.success {
+            self.stack.push(1.into());
+        } else {
+            self.stack.push(0.into());
+        }
+    }
+
+    fn is_state_changing_opcode(&self, opcode: u8) -> bool {
+        let state_changing_opcodes = [
+            0xF0, // CREATE
+            0xF5, // CREATE2
+            0xFF, // SELFDESTRUCT
+            0xA0, // LOG0,
+            0xA1, // LOG1
+            0xA2, // LOG2
+            0xA3, // LOG3
+            0xA4, // LOG4
+            0x55, // SSTORE
+        ];
+        state_changing_opcodes.contains(&opcode)
+    }
+
+    pub fn static_call(&mut self) {
+        if self.stack.len() < 6 {
+            panic!("stack underflow");
+        }
+        let _gas = self.pop().as_u64();
+        let to_addr = self.pop();
+        let mem_in_start = self.pop().as_u64() as usize;
+        let mem_in_size = self.pop().as_u64() as usize;
+        let mem_out_start = self.pop().as_u64() as usize;
+        let mem_out_size = self.pop().as_u64() as usize;
+
+        if self.memmory.len() < mem_in_start + mem_in_size {
+            self.memmory.resize(mem_in_start + mem_in_size, 0.into());
+        }
+        let data = &self.memmory[mem_in_start..mem_in_start + mem_in_size];
+        let account_target = self.account_db.get(&to_addr).unwrap();
+
+        let ctx = Transaction {
+            data: U256::from(data).into(),
+            value: 0,
+            caller: self.transaction.this_addr.clone(),
+            origin: self.transaction.origin.clone(),
+            this_addr: to_addr.clone(),
+            gas_price: self.transaction.gas_price,
+            gas_limit: self.transaction.gas_limit,
+            ..Transaction::default()
+        };
+        let mut evm_staticcall = EVM::init(&account_target.code, ctx, true);
+        evm_staticcall.run();
+
+        if self.memmory.len() < mem_out_start + mem_out_size {
+            self.memmory.resize(mem_out_start + mem_out_size, 0.into());
+        }
+        self.memmory[mem_out_start..mem_out_start + mem_out_size]
+            .copy_from_slice(&evm_staticcall.return_data);
+
+        if evm_staticcall.success {
             self.stack.push(1.into());
         } else {
             self.stack.push(0.into());
@@ -974,6 +1040,13 @@ impl EVM {
                 CALL => {
                     self.call();
                 }
+                i if self.is_static && self.is_state_changing_opcode(i) => {
+                    self.success = false;
+                    panic!("State changing operation detected during STATICCALL!");
+                }
+                STATICCALL => {
+                    self.static_call();
+                }
                 _ => unimplemented!(),
             }
         }
@@ -982,7 +1055,6 @@ impl EVM {
 
 pub fn main() {
     let appname = r#"
-
     ███╗   ██╗ █████╗ ██╗██╗   ██╗███████╗    ███████╗██╗   ██╗███╗   ███╗
     ████╗  ██║██╔══██╗██║██║   ██║██╔════╝    ██╔════╝██║   ██║████╗ ████║
     ██╔██╗ ██║███████║██║██║   ██║█████╗      █████╗  ██║   ██║██╔████╔██║
@@ -994,9 +1066,10 @@ pub fn main() {
     "#;
     println!("{}", appname.green().bold());
 
-    let code = b"\x60\x01\x60\x1f\x5f\x5f\x60\x01\x73\x10\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0c\x42\x5f\xf1\x5f\x51";
+    let code = b"\x60\x01\x60\x1f\x5f\x5f\x73\x10\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x0c\x42\x5f\xfA\x5f\x51";
+
     // need write right txn first see detail in default
-    let mut evm = EVM::init(code, Transaction::default());
+    let mut evm = EVM::init(code, Transaction::default(), false);
     // check valid jumo dest
     evm.find_valid_jump_destinations();
     // add return data

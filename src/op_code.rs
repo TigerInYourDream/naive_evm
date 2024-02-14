@@ -64,3 +64,4 @@ pub const RETURNDATACOPY: u8 = 0x3E;
 pub const REVERT: u8 = 0xFD;
 pub const INVALID: u8 = 0xFE;
 pub const CALL: u8 = 0xF1;
+pub const STATICCALL: u8 = 0xFA;
