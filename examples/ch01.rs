@@ -1,6 +1,7 @@
 use anyhow::Result;
 use colored::Colorize;
 use naive_evm::op_code::*;
+use once_cell::sync::Lazy;
 use primitive_types::U256;
 use sha3::Digest;
 use std::num::NonZeroU32;
@@ -115,6 +116,7 @@ pub struct EVM {
     return_data: Vec<u8>,
     success: bool,
     is_static: bool,
+    gas_used: u64,
 }
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct TransparentU256(pub U256);
@@ -203,6 +205,7 @@ impl EVM {
             return_data: Vec::new(),
             success: true,
             is_static,
+            gas_used: 0,
         }
     }
 
@@ -217,6 +220,7 @@ impl EVM {
         let value = U256::from(data);
         self.stack.push(value.into());
         self.pc += size;
+        self.gas_used += GASCOST.get(&PUSH1).unwrap();
     }
 
     pub fn pop(&mut self) -> TransparentU256 {
@@ -874,6 +878,11 @@ impl EVM {
         account_target.balance += balance;
     }
 
+    pub fn gas(&mut self) {
+        self.stack
+            .push((self.transaction.gas_limit - self.gas_used).into());
+    }
+
     pub fn run(&mut self) {
         while self.pc < self.code.len() {
             let op = self.next_instruction();
@@ -1071,11 +1080,31 @@ impl EVM {
                 SELFDESTRUCT => {
                     self.selfdestruct();
                 }
+                GAS => {
+                    self.gas();
+                }
                 _ => unimplemented!(),
+            }
+            // check gas in every round
+            if self.gas_used > self.transaction.gas_limit {
+                self.success = false;
+                panic!("out of gas");
             }
         }
     }
 }
+
+static GASCOST: Lazy<HashMap<u8, u64>> = Lazy::new(|| {
+    let mut gas_costs = HashMap::new();
+    gas_costs.insert(PUSH0, 3);
+    gas_costs.insert(PUSH1, 3);
+    gas_costs.insert(PUSH32, 3);
+    gas_costs.insert(POP, 2);
+    gas_costs.insert(ADD, 3);
+    gas_costs.insert(MUL, 5);
+    gas_costs.insert(SUB, 3);
+    gas_costs
+});
 
 pub fn main() {
     let appname = r#"
@@ -1090,9 +1119,17 @@ pub fn main() {
     "#;
     println!("{}", appname.green().bold());
 
-    let code = b"\x60\x20\xff";
+    let txn = Transaction {
+        value: 10,
+        this_addr: U256::from("0x1000000000000000000000000000000000000c42").into(),
+        gas_limit: 100,
+        gas_price: 1,
+        ..Transaction::default()
+    };
+
+    let code = b"\x60\x20\x5a";
     // need write right txn first see detail in default
-    let mut evm = EVM::init(code, Transaction::default(), false);
+    let mut evm = EVM::init(code, txn, false);
     // check valid jumo dest
     evm.find_valid_jump_destinations();
     // add return data
@@ -1105,4 +1142,6 @@ pub fn main() {
     println!("[log]          --> {:?}", &evm.log);
     println!("[return_data]  --> {:?}", hex::encode(&evm.return_data));
     println!("[account_bd]   --> {:?}", &evm.account_db);
+    println!("[gas_used]     --> {:?}", &evm.gas_used);
+    println!("[txn.gaslimit] --> {:?}", &evm.transaction.gas_limit);
 }
