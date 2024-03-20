@@ -1,16 +1,19 @@
-use anyhow::Result;
-use colored::Colorize;
-use naive_evm::op_code::*;
-use once_cell::sync::Lazy;
-use primitive_types::U256;
-use sha3::Digest;
-use std::num::NonZeroU32;
 use std::{
     collections::{HashMap, HashSet},
-    fmt::{Debug, Display, Error, Formatter},
+    fmt::{Display, Formatter},
+    num::NonZeroU32,
     ops::{Deref, DerefMut},
     str::FromStr,
 };
+
+use colored::Colorize;
+use naive_evm::op_code::{
+    ADD, DUP1, DUP16, JUMPDEST, MUL, POP, PUSH0, PUSH1, PUSH32, SUB, SWAP1, SWAP16,
+};
+use once_cell::sync::Lazy;
+use primitive_types::U256;
+use sha3::Digest;
+use std::fmt::Debug;
 
 #[derive(Debug)]
 struct Block {
@@ -122,7 +125,7 @@ pub struct EVM {
 pub struct TransparentU256(pub U256);
 
 impl Debug for TransparentU256 {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(f, "{:}", self.0)
     }
 }
@@ -160,7 +163,7 @@ impl From<U256> for TransparentU256 {
 }
 
 impl Display for EVM {
-    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), Error> {
+    fn fmt(&self, f: &mut Formatter<'_>) -> Result<(), std::fmt::Error> {
         write!(f, "Evm stack: {:?} memmory: {:?}", self.stack, self.memmory)
     }
 }
@@ -1114,8 +1117,8 @@ pub fn main() {
     ██║╚██╗██║██╔══██║██║╚██╗ ██╔╝██╔══╝      ██╔══╝  ╚██╗ ██╔╝██║╚██╔╝██║
     ██║ ╚████║██║  ██║██║ ╚████╔╝ ███████╗    ███████╗ ╚████╔╝ ██║ ╚═╝ ██║
     ╚═╝  ╚═══╝╚═╝  ╚═╝╚═╝  ╚═══╝  ╚══════╝    ╚══════╝  ╚═══╝  ╚═╝     ╚═╝
-                                                                          
-    
+
+
     "#;
     println!("{}", appname.green().bold());
 
