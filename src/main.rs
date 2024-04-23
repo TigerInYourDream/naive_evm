@@ -1010,7 +1010,7 @@ impl EVM {
                     let position = i - DUP1 + 1;
                     self.dup(position as usize);
                 }
-                i if (SWAP1 ..= SWAP16).contains(&i) => {
+                i if (SWAP1..=SWAP16).contains(&i) => {
                     let position = op - SWAP1 + 1;
                     self.swap(position as usize)
                 }
